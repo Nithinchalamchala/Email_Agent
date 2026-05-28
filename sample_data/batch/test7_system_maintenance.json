@@ -1,0 +1,8 @@
+{
+  "sender": "alerts@system.company.com",
+  "subject": "System Maintenance Scheduled",
+  "body": "There will be scheduled maintenance this Saturday from 1-3am.",
+  "timestamp": "2026-05-28T18:00:00",
+  "thread_id": "sysnotice7",
+  "metadata": { "is_external": false }
+}

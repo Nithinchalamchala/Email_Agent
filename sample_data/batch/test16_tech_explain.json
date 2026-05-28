@@ -1,0 +1,8 @@
+{
+  "sender": "elena.rostova@smarttech.io",
+  "subject": "Architecture inquiry: LLM context retrieval and PII scrubbing rules",
+  "body": "Hi there,\n\nI am the lead security architect at SmartTech. We are considering licensing the Hermes Email Intelligence Pipeline for our internal operations.\n\nCould you please explain how the pre-processor handles PII scrubbing? Specifically, do you redact names and financial credentials locally before sending inputs to the LLM (OpenAI/Gemini), or do you rely on the provider's privacy filters?\n\nAdditionally, how does the decision engine handle context-window truncation for very long historical threads to prevent hallucination?\n\nBest,\nElena Rostova\nLead Security Architect, SmartTech",
+  "timestamp": "2026-05-26T11:40:00",
+  "thread_id": "tech-smart-512",
+  "metadata": { "is_external": true }
+}

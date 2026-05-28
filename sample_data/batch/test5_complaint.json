@@ -1,0 +1,8 @@
+{
+  "sender": "customer123@bank.com",
+  "subject": "Complaint regarding fees",
+  "body": "Hello, I was charged extra fees last month and would like to file a formal complaint.",
+  "timestamp": "2026-05-28T16:45:00",
+  "thread_id": "complaint12",
+  "metadata": { "is_external": true }
+}

@@ -1,0 +1,8 @@
+{
+  "sender": "manager@internal.company.com",
+  "subject": "FYI: Company holiday next week",
+  "body": "Please note, our office will remain closed next Monday for the public holiday.",
+  "timestamp": "2026-05-28T07:00:00",
+  "thread_id": "fyi1234",
+  "metadata": { "is_external": false }
+}

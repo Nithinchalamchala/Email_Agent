@@ -1,0 +1,8 @@
+{
+  "sender": "info@randomdomain.com",
+  "subject": "Test email",
+  "body": "Random email body just for system test purposes.",
+  "timestamp": "2026-06-02T13:20:00",
+  "thread_id": "random999",
+  "metadata": { "is_external": true }
+}

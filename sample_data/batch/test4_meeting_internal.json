@@ -1,0 +1,8 @@
+{
+  "sender": "ceo@company.com",
+  "subject": "Quarterly Results Meeting",
+  "body": "All hands. Please join the Q2 meeting on Friday at 10:30am. Agenda attached.",
+  "timestamp": "2026-05-27T08:30:00",
+  "thread_id": "meeting22",
+  "metadata": { "is_external": false }
+}

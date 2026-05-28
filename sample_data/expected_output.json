@@ -1,0 +1,13 @@
+{
+  "classification": {
+    "safety": "safe",
+    "source": "customer_external",
+    "intent": "reply_needed",
+    "priority": "high"
+  },
+  "action": "generate_draft",
+  "draft": "...generated email...",
+  "summary": "",
+  "reasoning": "Draft generated via OpenAI.",
+  "requires_human_review": true
+}

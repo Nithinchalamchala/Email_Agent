@@ -1,0 +1,8 @@
+{
+  "sender": "no-reply@aws-security-alerts.amazon.com",
+  "subject": "AWS Security Alert: Failed Console Login Detected for User 'Root'",
+  "body": "AWS Notification Message:\n\nWe detected a failed attempt to log in to the AWS Console using your account's 'Root' user credentials.\n\nDetails:\n- Time: 2026-05-26T17:41:00Z\n- IP Address: 198.51.100.42\n- Location: Unknown / VPN\n- User Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)\n\nSince root account console logins bypass standard single sign-on access paths, we highly recommend verifying this login attempt immediately.\n\nIf this attempt was not initiated by you, please review your AWS IAM security policies, rotate credential profiles, and ensure MFA is active.\n\nRegards,\nAmazon Web Services Cloud Security Division",
+  "timestamp": "2026-05-26T17:41:00",
+  "thread_id": "aws-sec-alert-4012",
+  "metadata": { "is_external": false }
+}

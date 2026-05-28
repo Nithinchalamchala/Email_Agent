@@ -1,0 +1,8 @@
+{
+  "sender": "security-alert@chase-verification-update.com",
+  "subject": "URGENT: Temporary Lock on Your Bank Account - Action Required",
+  "body": "Dear Customer,\n\nWe detected suspicious login activity on your Chase bank account from an unrecognized IP address in Moscow, Russia.\n\nTo protect your funds, we have temporarily suspended online access to your account. You must verify your identity immediately to restore full privileges.\n\nClick the secure link below to verify your details:\nhttp://chase-verification-secure-portal.com/login?token=847a9c\n\nFailure to verify within 24 hours will result in permanent account closure.\n\nThank you,\nChase Security Team & Risk Prevention Division",
+  "timestamp": "2026-05-26T16:10:00",
+  "thread_id": "chase-sec-8902",
+  "metadata": { "is_external": true }
+}

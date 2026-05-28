@@ -1,0 +1,8 @@
+{
+  "sender": "billing@vendorpartner.com",
+  "subject": "Invoice INV-555 payment confirmation",
+  "body": "Dear team, your payment for invoice INV-555 has been received. Thank you!",
+  "timestamp": "2026-05-31T10:30:00",
+  "thread_id": "invpay55",
+  "metadata": { "is_external": true }
+}

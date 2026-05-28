@@ -1,0 +1,34 @@
+{
+  "classification": {
+    "safety": "safe",
+    "source": "internal",
+    "intent": "informational",
+    "priority": "medium"
+  },
+  "action": "generate_draft_and_notify",
+  "draft": "Subject: Re: System Maintenance Scheduled\n\nDear Chalamchala Anjaninithin,\n\nThank you for notifying us about the scheduled maintenance this Saturday from 1-3am. We appreciate the heads-up about this update.\n\nWe acknowledge the confidentiality and copyright protection of the information shared by Crisp Analytics Pvt Ltd (Lumiq). Rest assured, we will handle this information with the utmost care and respect for intellectual property rights.\n\nShould there be any further instructions or updates regarding this maintenance, please do not hesitate to inform us.\n\nThank you for your attention to this matter.\n\nWarm regards,\n\n[Your Name]\n[Your Position]\n[Your Company]",
+  "summary": "",
+  "reasoning": "Draft generated via OpenAI.",
+  "requires_human_review": true,
+  "llm_classification": {
+    "source": "internal",
+    "intent": "informational",
+    "llm_raw": "{\"source\": \"internal\", \"intent\": \"informational\"}"
+  },
+  "original_subject": "System Maintenance Scheduled",
+  "original_body": "There will be scheduled maintenance this Saturday from 1-3am.\nDisclaimer: This message contains information which is confidential and protected by copyright and is governed by intellectual property rights of Crisp Analytics Pvt Ltd (Lumiq). The use of the \u201cLumiq.ai\u201d trademarks without the prior written consent of \u201cLumiq.ai\u201d is forbidden. If you are not the intended recipient of this message, please delete it and destroy all copies. If you are the intended recipient of this message, you should not disclose or distribute or forward it to third parties without the consent of our company.",
+  "original_sender": "chalamchala.anjaninithin@lumiq.ai",
+  "original_timestamp": "2026-05-28T07:04:11Z",
+  "original_thread_id": "AAQkADJlNTFlMmYyLTI2YWQtNGI2Zi05OWRhLTg0OGUwYzEyNDYwZQAQACzPV0BpEBdPqYlWGAA0UkE=",
+  "original_html_body": "<html><head>\r\n<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"></head><body><div style=\"direction:ltr; text-align:left; text-indent:0px; line-height:18px; text-transform:none; background-color:rgb(31,31,31); font-family:Menlo,Monaco,&quot;Courier New&quot;,monospace; font-size:12px; color:rgb(206,145,120)\">There will be scheduled maintenance this Saturday from 1-3am.</div><div style=\"direction:ltr; font-family:Aptos,Arial,Helvetica,sans-serif; font-size:12pt; color:rgb(0,0,0)\"><br></div><div id=\"ms-outlook-mobile-signature\" dir=\"ltr\" style=\"color:inherit; background-color:inherit\"></div>Disclaimer: This message contains information which is confidential and protected by copyright and is governed by intellectual property rights of Crisp Analytics Pvt Ltd (Lumiq). The use of the \u201cLumiq.ai\u201d trademarks without the prior written consent of \u201cLumiq.ai\u201d is forbidden. If you are not the intended recipient of this message, please delete it and destroy all copies. If you are the intended recipient of this message, you should not disclose or distribute or forward it to third parties without the consent of our company. </body></html>",
+  "full_msg": {
+    "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('e9b935fa-f52f-448f-acb3-ee7e18a0147b')/messages(body,subject)/$entity",
+    "@odata.etag": "W/\"CQAAABYAAADWbvNAZXc9SoXua9mRWwANAAACd5iV\"",
+    "id": "AAMkADJlNTFlMmYyLTI2YWQtNGI2Zi05OWRhLTg0OGUwYzEyNDYwZQBGAAAAAACEFbGlA20DRrZnMCfJtQMWBwDWbvNAZXc9SoXua9mRWwANAAAAAAEMAADWbvNAZXc9SoXua9mRWwANAAACenBzAAA=",
+    "subject": "System Maintenance Scheduled",
+    "body": {
+      "contentType": "html",
+      "content": "<html><head>\r\n<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"></head><body><div style=\"direction:ltr; text-align:left; text-indent:0px; line-height:18px; text-transform:none; background-color:rgb(31,31,31); font-family:Menlo,Monaco,&quot;Courier New&quot;,monospace; font-size:12px; color:rgb(206,145,120)\">There will be scheduled maintenance this Saturday from 1-3am.</div><div style=\"direction:ltr; font-family:Aptos,Arial,Helvetica,sans-serif; font-size:12pt; color:rgb(0,0,0)\"><br></div><div id=\"ms-outlook-mobile-signature\" dir=\"ltr\" style=\"color:inherit; background-color:inherit\"></div>Disclaimer: This message contains information which is confidential and protected by copyright and is governed by intellectual property rights of Crisp Analytics Pvt Ltd (Lumiq). The use of the \u201cLumiq.ai\u201d trademarks without the prior written consent of \u201cLumiq.ai\u201d is forbidden. If you are not the intended recipient of this message, please delete it and destroy all copies. If you are the intended recipient of this message, you should not disclose or distribute or forward it to third parties without the consent of our company. </body></html>"
+    }
+  }
+}

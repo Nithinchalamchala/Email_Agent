@@ -1,0 +1,8 @@
+{
+  "sender": "derek.vaughn@globalfab.com",
+  "subject": "CRITICAL: Major Production Downtime due to API Interruption",
+  "body": "Hi Hermes Team,\n\nI am writing to express my severe disappointment with the service reliability today. We experienced a complete interruption of the Hermes Classification API between 2:00 PM and 3:30 PM EST.\n\nThis API is integrated directly into our real-time manufacturing dispatch line. Because of the outage, our sorting systems ground to a halt, resulting in 90 minutes of idling labor and a backlog of over 4,000 unclassified shipments. This downtime has cost us roughly $25,000 in immediate logistical delays.\n\nWe require an immediate root-cause analysis (RCA) and want to know how you plan to compensate us under our Enterprise SLA guidelines.\n\nRegards,\nDerek Vaughn\nVP of Global Operations, GlobalFab Logistics",
+  "timestamp": "2026-05-26T16:00:00",
+  "thread_id": "outage-global-991",
+  "metadata": { "is_external": true }
+}

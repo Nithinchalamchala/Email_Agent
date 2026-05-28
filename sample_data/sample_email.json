@@ -1,0 +1,10 @@
+{
+  "sender": "john@example.com",
+  "subject": "Need clarification on invoice",
+  "body": "Hello team, I need clarification regarding invoice INV-102. Could you please reply with the details? Regards, John",
+  "timestamp": "2026-05-26T10:30:00",
+  "thread_id": "abc123",
+  "metadata": {
+    "is_external": true
+  }
+}

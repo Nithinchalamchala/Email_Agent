@@ -1,0 +1,8 @@
+{
+  "sender": "spam@scam.net",
+  "subject": "Urgent: Verify your payment details",
+  "body": "We noticed suspicious activity. Click the link to verify now or your account will be suspended!",
+  "timestamp": "2026-06-01T09:00:00",
+  "thread_id": "spam123",
+  "metadata": { "is_external": true }
+}

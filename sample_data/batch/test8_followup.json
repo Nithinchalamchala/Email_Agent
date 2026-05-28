@@ -1,0 +1,8 @@
+{
+  "sender": "mark@internal.company.com",
+  "subject": "Follow up: Documents submission required",
+  "body": "Hi Nithin, can you submit the project documents by Thursday? Reminder.",
+  "timestamp": "2026-05-27T14:00:00",
+  "thread_id": "projfollow89",
+  "metadata": { "is_external": false }
+}
