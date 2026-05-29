@@ -1,6 +1,13 @@
 # Environment variables - never commit secrets
 .env
 
+# MSAL token cache — contains user access tokens
+cal/token_cache.json
+
+# Live email data — contains real inbox content, never commit
+sample_data/batch/outputdraft/
+sample_data/batch/raw_o365_emails.json
+
 # Python
 __pycache__/
 *.py[cod]
@@ -62,3 +69,6 @@ htmlcov/
 # mypy
 .mypy_cache/
 .dmypy.json
+
+# Internal planning docs
+docs_cal/

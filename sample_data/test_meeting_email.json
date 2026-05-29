@@ -1,0 +1,8 @@
+{
+  "sender": "rahul.sharma@example.com",
+  "subject": "Meeting Request - Q2 Review",
+  "body": "Hi, can we schedule a meeting next Monday at 3pm IST for 1 hour to discuss the Q2 report? Please confirm your availability.",
+  "timestamp": "2026-05-28T10:00:00Z",
+  "thread_id": "test-thread-001",
+  "metadata": { "id": "test-001" }
+}

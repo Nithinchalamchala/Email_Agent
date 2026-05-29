@@ -1,10 +1,34 @@
 import React, { useEffect } from "react";
-import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Link, useLocation } from "react-router-dom";
 import EmailTable from "./components/EmailTable";
 import EmailDetails from "./components/EmailDetails";
+import CalendarPage from "./components/CalendarPage";
 import { Layout, Badge, Space } from "antd";
 
 const { Header, Content, Footer } = Layout;
+
+const NavLink: React.FC<{ to: string; label: string }> = ({ to, label }) => {
+  const location = useLocation();
+  const active = location.pathname === to || (to !== "/" && location.pathname.startsWith(to));
+  return (
+    <Link
+      to={to}
+      style={{
+        color: active ? "#ffffff" : "#94a3b8",
+        fontWeight: active ? 700 : 500,
+        fontSize: 14,
+        textDecoration: "none",
+        padding: "6px 14px",
+        borderRadius: 8,
+        background: active ? "#1e293b" : "transparent",
+        border: active ? "1px solid #334155" : "1px solid transparent",
+        transition: "all 0.15s",
+      }}
+    >
+      {label}
+    </Link>
+  );
+};
 
 const App: React.FC = () => {
   // Inject premium typography dynamically
@@ -67,6 +91,12 @@ const App: React.FC = () => {
             </span>
           </Link>
 
+          {/* Nav links */}
+          <Space size={4} align="center">
+            <NavLink to="/" label="📧 Pipeline" />
+            <NavLink to="/calendar" label="📅 Calendar" />
+          </Space>
+
           {/* Connection Status & Pipeline Meta info */}
           <Space size={16} align="center">
             <div style={{
@@ -101,6 +131,7 @@ const App: React.FC = () => {
           <Routes>
             <Route path="/" element={<EmailTable />} />
             <Route path="/email/:id" element={<EmailDetails />} />
+            <Route path="/calendar" element={<CalendarPage />} />
           </Routes>
         </Content>
 
