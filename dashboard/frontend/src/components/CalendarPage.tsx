@@ -190,7 +190,7 @@ const CalendarPage: React.FC = () => {
       .catch(() => setEventsLoading(false));
   };
 
-  useEffect(() => { loadEvents(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadEvents(); }, []); // run once on mount
 
   const handleRunPipeline = async (values: any) => {
     const token = calToken || await acquireToken();
