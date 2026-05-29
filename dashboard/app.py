@@ -19,6 +19,8 @@ from storage.database import (
 
 init_db()
 
+from datetime import datetime as _dt
+
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -130,10 +132,6 @@ def mark_email_read(email_id: str):
 def fetch_emails(
     x_ms_graph_token: str | None = Header(default=None, alias="X-MS-GRAPH-TOKEN"),
 ):
-    """
-    Receive a Graph access token from the browser (SPA MSAL flow),
-    fetch unread emails, run them through the pipeline, save to DB.
-    """
     if not x_ms_graph_token:
         raise HTTPException(
             status_code=401,
@@ -163,7 +161,6 @@ def sync_status():
     user_email        = ""
     connected_account = "Not connected"
 
-    # 1. Try MSAL token cache (preferred — works after MSAL sign-in)
     try:
         from auth.msal_auth import get_authenticated_user
         msal_user = get_authenticated_user()
@@ -173,7 +170,6 @@ def sync_status():
     except Exception:
         pass
 
-    # 2. Fallback: decode legacy MS_GRAPH_TOKEN from .env (if still present)
     if not user_email:
         token = os.environ.get("MS_GRAPH_TOKEN", "")
         if token:
@@ -198,3 +194,38 @@ def sync_status():
         "connected_account": connected_account,
         "user_email":        user_email or "",
     }
+
+
+# ── Calendar endpoints ─────────────────────────────────────────────────────────
+
+@app.get("/api/calendar/calendars")
+def api_get_calendars():
+    try:
+        from cal.graph_client import get_calendars
+        return get_calendars()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/calendar/events")
+def api_get_events(days: int = 7):
+    try:
+        from cal.graph_client import get_upcoming_events
+        return get_upcoming_events(days=days)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/calendar/run")
+def api_run_calendar_pipeline(body: dict):
+    try:
+        from cal.calendar_pipeline import run_calendar_pipeline
+        email = {
+            "sender": body.get("sender", ""),
+            "subject": body.get("subject", ""),
+            "cleaned_body": body.get("body", ""),
+            "timestamp": body.get("timestamp") or _dt.utcnow().isoformat(),
+        }
+        return run_calendar_pipeline(email)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

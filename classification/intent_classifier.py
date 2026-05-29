@@ -6,7 +6,17 @@ from models.email_models import CleanedEmail
 from utils.constants import INTENT_LABELS
 
 class IntentClassifier:
+    _CALENDAR_KEYWORDS = {
+        "meet", "meeting", "schedule", "calendar invite", "call",
+        "catch up", "sync", "let's connect", "available", "free slot",
+        "book a time", "appointment",
+    }
+
     intent_rules = [
+        ("calendar", lambda e: any(
+            kw in (e.subject + " " + e.cleaned_body).lower()
+            for kw in IntentClassifier._CALENDAR_KEYWORDS
+        )),
         ("meeting_related", lambda e: "meeting" in e.subject.lower() or "calendar invite" in e.cleaned_body.lower()),
         ("complaint", lambda e: "not happy" in e.cleaned_body.lower() or "complaint" in e.subject.lower() or "issue" in e.cleaned_body.lower()),
         ("support_request", lambda e: "support" in e.subject.lower() or "help" in e.cleaned_body.lower()),

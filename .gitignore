@@ -7,6 +7,13 @@
 # MSAL token cache — contains refresh tokens, never commit
 auth/.token_cache.json
 
+# Calendar token cache
+cal/token_cache.json
+
+# Live email data — contains real inbox content, never commit
+sample_data/batch/outputdraft/
+sample_data/batch/raw_o365_emails.json
+
 # Python
 __pycache__/
 *.py[cod]
@@ -68,3 +75,6 @@ htmlcov/
 # mypy
 .mypy_cache/
 .dmypy.json
+
+# Internal planning docs
+docs_cal/

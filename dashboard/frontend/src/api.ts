@@ -18,16 +18,13 @@ export const fetchBatch = async (params: BatchParams = {}) => {
     if (v !== undefined && v !== null && v !== '') qs.set(k, String(v));
   });
   return (await axios.get(`${BASE}/api/batch?${qs}`)).data;
-  // Returns: { results, total, page, limit, has_more }
 };
 
 export const fetchStats = async () =>
   (await axios.get(`${BASE}/api/stats`)).data;
-  // Returns: { total, unread, needs_review, high_priority }
 
 export const fetchSyncStatus = async () =>
   (await axios.get(`${BASE}/api/sync-status`)).data;
-  // Returns: { last_sync, ai_status, connected_account, user_email }
 
 export const fetchEmail = async (id: string) =>
   (await axios.get(`${BASE}/api/email/${id}`)).data;
@@ -41,4 +38,17 @@ export const triggerEmailFetch = async (graphToken: string) =>
     {},
     { headers: { "X-MS-GRAPH-TOKEN": graphToken } },
   )).data;
-  // Returns: { success, processed, skipped, emails }
+
+// Calendar
+export const fetchCalendarEvents = async (days = 7) =>
+  (await axios.get(`${BASE}/api/calendar/events?days=${days}`)).data;
+
+export const fetchCalendars = async () =>
+  (await axios.get(`${BASE}/api/calendar/calendars`)).data;
+
+export const runCalendarPipeline = async (email: {
+  sender: string;
+  subject: string;
+  body: string;
+  timestamp: string;
+}) => (await axios.post(`${BASE}/api/calendar/run`, email)).data;
