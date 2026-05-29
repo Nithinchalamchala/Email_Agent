@@ -11,27 +11,24 @@ The dashboard provides a visual interface for reviewing batch-processed email re
 
 ## Backend (app.py)
 
-The FastAPI app reads from two result directories:
-
-- `sample_data/batch/results/` - Results from `batch_test.py`
-- `sample_data/batch/outputdraft/` - Results from `fetch_unread_o365.py`
+The FastAPI app reads from `sample_data/hermes.db` (SQLite). Run `python -m storage.migrate` once to seed it from existing JSON files.
 
 ### API Endpoints
 
 | Endpoint | Method | Description |
 |---|---|---|
-| `/api/batch` | GET | Returns a summary list of all processed emails with metadata: sender, subject, action, priority, intent, safety, and whether human review is required. |
-| `/api/email/{email_id}` | GET | Returns the full pipeline result for a single email by ID, including the original email body and the generated draft. |
-
-Both endpoints match each result file to its original input file (same base filename without `_result.json`) to surface original sender and subject information.
+| `/api/batch` | GET | Paginated email list. Query params: `page`, `limit`, `filter` (today/yesterday/7days/unread/important/ai_replied/pending_review/all), `search`, `priority`, `safety`, `action`. |
+| `/api/stats` | GET | Global counts: total, unread, needs_review, high_priority. |
+| `/api/email/{email_id}` | GET | Full pipeline result for one email including original body + AI draft. |
+| `/api/email/{email_id}/mark-read` | PATCH | Mark email as read in DB. |
 
 ## Starting the Dashboard
 
 ### Backend
 
 ```bash
-# From the project root
-uvicorn dashboard.app:app --reload --port 8000
+# From the project root (--app-dir . is required so storage/ is importable)
+uvicorn dashboard.app:app --app-dir . --reload --port 8000
 ```
 
 The API will be available at `http://localhost:8000`.

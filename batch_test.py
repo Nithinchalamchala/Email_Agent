@@ -1,40 +1,62 @@
 import os
 import json
+from datetime import datetime, timezone
 from pipeline.orchestrator import email_pipeline
+from storage.database import init_db, insert_email
 
 BATCH_DIR = "sample_data/batch"
-RESULTS_DIR = "sample_data/batch/results"
-
-os.makedirs(RESULTS_DIR, exist_ok=True)
 
 def run_batch():
+    init_db()
     files = [
         f for f in os.listdir(BATCH_DIR)
-        if f.endswith(".json") and not f.startswith("result") and os.path.isfile(os.path.join(BATCH_DIR, f))
+        if f.endswith(".json")
+        and not f.startswith("result")
+        and os.path.isfile(os.path.join(BATCH_DIR, f))
     ]
     for f in sorted(files):
-        print("="*60)
+        print("=" * 60)
         print(f"INPUT FILE: {f}")
-        with open(os.path.join(BATCH_DIR, f), "r") as fin:
+        with open(os.path.join(BATCH_DIR, f)) as fin:
             data = json.load(fin)
+
+        email_id = f.replace(".json", "")
         result = email_pipeline(data)
-        # Propagate original fields robustly for dashboard/traceability
-        result["original_subject"] = data.get("subject", "")
-        result["original_body"] = data.get("body", "")
-        result["original_sender"] = data.get("sender", "")
-        result["original_timestamp"] = data.get("timestamp", "")
-        result["original_thread_id"] = data.get("thread_id", "")
-        # Optionally propagate O365/Graph-style nested body/content fields if present
-        if "full_msg" in data and isinstance(data["full_msg"], dict):
-            msg = data["full_msg"]
-            if isinstance(msg.get("body"), dict) and msg["body"].get("content"):
-                result["original_html_body"] = msg["body"]["content"]
         print(json.dumps(result, indent=2))
-        result_path = os.path.join(RESULTS_DIR, f.replace(".json", "_result.json"))
-        with open(result_path, "w") as fout:
-            json.dump(result, fout, indent=2)
-        print(f"Saved result: {result_path}")
-        print("="*60)
+
+        clf = result.get("classification", {}) or {}
+        pipeline_output = {
+            k: result[k]
+            for k in ("classification", "action", "draft", "summary",
+                      "reasoning", "requires_human_review")
+            if k in result
+        }
+        if result.get("llm_classification"):
+            pipeline_output["llm_classification"] = result["llm_classification"]
+
+        insert_email({
+            "id":                    email_id,
+            "sender":                data.get("sender", ""),
+            "subject":               data.get("subject", ""),
+            "body":                  data.get("body", ""),
+            "received_date":         data.get("timestamp"),
+            "is_read":               0,
+            "safety":                clf.get("safety", ""),
+            "source":                clf.get("source", ""),
+            "intent":                clf.get("intent", ""),
+            "priority":              clf.get("priority", ""),
+            "action":                result.get("action", ""),
+            "requires_human_review": 1 if result.get("requires_human_review") else 0,
+            "draft":                 result.get("draft"),
+            "summary":               result.get("summary"),
+            "reasoning":             result.get("reasoning"),
+            "pipeline_output":       json.dumps(pipeline_output),
+            "original_email":        json.dumps(data),
+            "processed_at":          datetime.now(timezone.utc).isoformat(),
+            "source_type":           "batch_test",
+        })
+        print(f"Saved to DB: {email_id}")
+        print("=" * 60)
 
 if __name__ == "__main__":
     run_batch()

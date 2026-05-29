@@ -1,176 +1,640 @@
-import React, { useEffect, useState } from "react";
-import { 
-  Table, 
-  Tag, 
-  Button, 
-  Typography, 
-  Row, 
-  Col, 
-  Card, 
-  Input, 
-  Select, 
-  Space, 
-  Avatar, 
-  Divider 
-} from "antd";
+import React, { useEffect, useState, useCallback, useRef } from "react";
+import { Typography, Row, Col, Input, Select, Space, Avatar, Spin, Button } from "antd";
+import {
+  CalendarOutlined,
+  ClockCircleOutlined,
+  FieldTimeOutlined,
+  MailOutlined,
+  StarOutlined,
+  RobotOutlined,
+  EditOutlined,
+  InboxOutlined,
+  ReloadOutlined,
+  PaperClipOutlined,
+  FlagFilled,
+} from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
-import { fetchBatch } from "../api";
+import { fetchBatch, fetchStats, markEmailRead } from "../api";
 
-const { Paragraph, Title, Text } = Typography;
-const { Option } = Select;
+const { Title, Text } = Typography;
+const { Option }      = Select;
 
-function actionColor(action: string) {
-  switch (action) {
-    case 'generate_draft_and_notify': return 'geekblue';
-    case 'notify_only': return 'green';
-    case 'summarize_only': return 'purple';
-    default: return 'default';
-  }
-}
-function getFriendlyAction(action: string) {
-  switch (action) {
-    case 'generate_draft_and_notify': return 'Draft & Notify';
-    case 'notify_only': return 'Notify Only';
-    case 'summarize_only': return 'Summarize Only';
-    default: return action || 'N/A';
-  }
-}
-const getAvatarColor = (sender: string) => {
-  const char = (sender || "U").trim().charAt(0).toUpperCase();
-  const colors: { [key: string]: string } = {
-    A: "#f56a00", B: "#7265e6", C: "#ffbf00", D: "#00a2ae", E: "#1890ff",
-    F: "#f56a00", G: "#7265e6", H: "#ffbf00", I: "#00a2ae", J: "#1890ff",
-    K: "#a0d911", L: "#eb2f96", M: "#fa8c16", N: "#fa541c", O: "#13c2c2",
-    P: "#52c41a", Q: "#2f54eb", R: "#722ed1", S: "#f5222d", T: "#faad14",
-    U: "#1890ff", V: "#7265e6", W: "#ffbf00", X: "#00a2ae", Y: "#fa8c16", Z: "#722ed1"
-  };
-  return colors[char] || "#1890ff";
+// ── Design tokens ──────────────────────────────────────────────────────────────
+
+const C = {
+  primary:   "#2563eb",
+  primaryBg: "#eff6ff",
+  text1:     "#0f172a",
+  text2:     "#475569",
+  text3:     "#94a3b8",
+  border:    "#e2e8f0",
+  bgCard:    "#ffffff",
+  bgPage:    "#f1f5f9",
+  unreadBg:  "#f0f9ff",
+  unreadBdr: "#2563eb",
+  high:      "#dc2626",
+  highBg:    "#fef2f2",
+  medium:    "#d97706",
+  mediumBg:  "#fffbeb",
+  low:       "#16a34a",
+  lowBg:     "#f0fdf4",
 };
 
-const EmailTable: React.FC = () => {
-  const [data, setData] = useState<any[]>([]);
-  const [searchText, setSearchText] = useState("");
-  const [priorityFilter, setPriorityFilter] = useState<string | undefined>(undefined);
-  const [safetyFilter, setSafetyFilter] = useState<string | undefined>(undefined);
-  const [actionFilter, setActionFilter] = useState<string | undefined>(undefined);
-  const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
+const PAGE_SIZE = 25;
 
-  const reload = () => {
-    setLoading(true);
-    fetchBatch()
-      .then(res => {
-        // Ensure correct fields for original info
-        const newData = (res || []).map((item: any) => ({
-          ...item,
-          show_subject: item.original_subject || item.subject || "(No Subject)",
-          show_body: item.body || item.original_body || "",
-        }));
-        setData(newData);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+// ── Filter definitions ─────────────────────────────────────────────────────────
+
+const FILTERS = [
+  { key: "7days",          label: "Last 7 Days",  icon: <CalendarOutlined /> },
+  { key: "today",          label: "Today",         icon: <ClockCircleOutlined /> },
+  { key: "yesterday",      label: "Yesterday",     icon: <FieldTimeOutlined /> },
+  { key: "unread",         label: "Unread",        icon: <MailOutlined /> },
+  { key: "important",      label: "Important",     icon: <StarOutlined /> },
+  { key: "ai_replied",     label: "AI Replied",    icon: <RobotOutlined /> },
+  { key: "pending_review", label: "Drafts",        icon: <EditOutlined /> },
+  { key: "all",            label: "All Mail",      icon: <InboxOutlined /> },
+];
+
+// ── Category + priority mapping ────────────────────────────────────────────────
+
+interface Cat { label: string; color: string; bg: string; }
+
+const CATEGORY: Record<string, Cat> = {
+  reply_needed:    { label: "Reply Needed",  color: "#9a3412", bg: "#fff7ed" },
+  complaint:       { label: "Complaint",     color: "#991b1b", bg: "#fef2f2" },
+  meeting_related: { label: "Meeting",       color: "#1e40af", bg: "#eff6ff" },
+  support_request: { label: "Support",       color: "#6b21a8", bg: "#faf5ff" },
+  follow_up:       { label: "Follow-up",     color: "#0e7490", bg: "#ecfeff" },
+  informational:   { label: "Informational", color: "#374151", bg: "#f9fafb" },
+};
+
+const priorityStyle = (p: string) => {
+  const v = (p || "").toLowerCase();
+  if (v === "high" || v === "urgent") return { label: "High",   color: C.high,   bg: C.highBg };
+  if (v === "medium")                 return { label: "Medium", color: C.medium, bg: C.mediumBg };
+  return                                     { label: "Low",    color: C.low,    bg: C.lowBg };
+};
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+const avatarColor = (s: string) => {
+  const map: Record<string, string> = {
+    A:"#b45309",B:"#7c3aed",C:"#d97706",D:"#0e7490",E:"#1d4ed8",
+    F:"#b45309",G:"#7c3aed",H:"#d97706",I:"#0e7490",J:"#1d4ed8",
+    K:"#15803d",L:"#be185d",M:"#c2410c",N:"#c2410c",O:"#0f766e",
+    P:"#15803d",Q:"#1d4ed8",R:"#6b21a8",S:"#b91c1c",T:"#b45309",
+    U:"#1d4ed8",V:"#7c3aed",W:"#d97706",X:"#0e7490",Y:"#c2410c",Z:"#6b21a8",
   };
+  return map[(s || "U").trim().charAt(0).toUpperCase()] || "#1d4ed8";
+};
 
-  useEffect(() => {
-    reload();
-  }, []);
+const formatDate = (d: string | null): string => {
+  if (!d) return "";
+  try {
+    const dt  = new Date(d);
+    const now = new Date();
+    const h   = (now.getTime() - dt.getTime()) / 3_600_000;
+    if (h < 1)  return "Just now";
+    if (h < 24) return `${Math.floor(h)}h ago`;
+    if (h < 48) return "Yesterday";
+    return dt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  } catch { return d; }
+};
 
-  const totalCount = data.length;
-  const reviewCount = data.filter(item => item.requires_human_review).length;
-  const highPriorityCount = data.filter(item => {
-    const p = (item.priority || "").toLowerCase();
-    return p === "high" || p === "urgent";
-  }).length;
-  const threatCount = data.filter(item => {
-    const s = (item.safety || "").toLowerCase();
-    return s === "suspicious" || s === "malicious";
-  }).length;
-  const filteredData = data.filter((item) => {
-    const matchesSearch = 
-      (item.sender || "").toLowerCase().includes(searchText.toLowerCase()) ||
-      (item.show_subject || "").toLowerCase().includes(searchText.toLowerCase());
-    const matchesPriority = !priorityFilter || (item.priority || "").toLowerCase() === priorityFilter.toLowerCase();
-    const matchesSafety = !safetyFilter || (item.safety || "").toLowerCase() === safetyFilter.toLowerCase();
-    const matchesAction = !actionFilter || item.action === actionFilter;
-    return matchesSearch && matchesPriority && matchesSafety && matchesAction;
-  });
+const isNew = (d: string | null) =>
+  !!d && Date.now() - new Date(d).getTime() < 86_400_000;
 
-  const columns = [
-    {
-      title: "Sender",
-      dataIndex: "sender",
-      key: "sender",
-      render: (txt: string) => <span>{txt || <Text type="secondary">Unknown</Text>}</span>
-    },
-    {
-      title: "Subject",
-      dataIndex: "show_subject",
-      key: "show_subject",
-      render: (subj: string, row: any) => <a onClick={() => navigate(`/email/${row.id}`)}>{subj || <Text type="secondary">(No Subject)</Text>}</a>,
-    },
-    {
-      title: "Body Snippet",
-      dataIndex: "show_body",
-      key: "show_body",
-      render: (body: string) => <span>{(body && body.length > 100 ? body.slice(0, 100) + "..." : body) || <Text type="secondary">(No Body)</Text>}</span>
-    },
-    {
-      title: "Action",
-      dataIndex: "action",
-      key: "action",
-      render: (val: string) => <Tag color={actionColor(val)}>{getFriendlyAction(val)}</Tag>
-    },
-    {
-      title: "Priority",
-      dataIndex: "priority",
-      key: "priority",
-      render: (p: string) => <span>{p || <Text type="secondary">N/A</Text>}</span>
-    },
-    {
-      title: "Safety",
-      dataIndex: "safety",
-      key: "safety",
-      render: (s: string) => <span>{s || <Text type="secondary">N/A</Text>}</span>
-    },
-    {
-      title: "Review Queue",
-      dataIndex: "requires_human_review",
-      key: "requires_human_review",
-      render: (val: boolean) => val ? <Tag color="warning">ACTION NEEDED</Tag> : <Tag color="success">Auto</Tag>
-    },
-  ];
+const hasAttachment = (body: string) =>
+  /\b(attach|attachment|enclosed|please find)\b/i.test(body || "");
+
+// ── localStorage helpers ───────────────────────────────────────────────────────
+
+const loadReadIds = (): Set<string> => {
+  try { return new Set(JSON.parse(localStorage.getItem("hermes_read_ids") || "[]")); }
+  catch { return new Set(); }
+};
+const saveReadIds = (ids: Set<string>) => {
+  try { localStorage.setItem("hermes_read_ids", JSON.stringify([...ids])); } catch {}
+};
+
+// ── EmailCard ──────────────────────────────────────────────────────────────────
+
+interface CardProps { item: any; isUnread: boolean; onClick: () => void; }
+
+const EmailCard: React.FC<CardProps> = ({ item, isUnread, onClick }) => {
+  const [hovered, setHovered] = useState(false);
+
+  const cat  = CATEGORY[item.intent] ?? null;
+  const pri  = priorityStyle(item.priority);
+  const showNew   = isNew(item.received_date);
+  const showClip  = hasAttachment(item.show_body);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      {/* KPIDashboard omitted for brevity, keep as is */}
-      <Card
-        bordered={false}
-        style={{ borderRadius: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.03)", border: "1px solid #e2e8f0" }}>
-        <Space direction="vertical" size={16} style={{ width: "100%" }}>
-          <Row justify="space-between" align="middle" gutter={[16, 16]}>
-            <Col>
-              <Title level={4} style={{ margin: 0, fontWeight: 700, color: "#0f172a" }}>
-                Pipeline Workspace
-              </Title>
-              <Text type="secondary" style={{ fontSize: 13 }}>
-                Review/approve results and monitor inbox automation.
-              </Text>
+    <div
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display:     "flex",
+        alignItems:  "stretch",
+        background:  isUnread ? C.unreadBg : C.bgCard,
+        border:      `1px solid ${isUnread ? "#bfdbfe" : C.border}`,
+        borderLeft:  `3px solid ${isUnread ? C.unreadBdr : "transparent"}`,
+        borderRadius: 8,
+        marginBottom: 6,
+        cursor:      "pointer",
+        boxShadow:   hovered
+          ? "0 4px 16px rgba(0,0,0,0.10)"
+          : "0 1px 3px rgba(0,0,0,0.04)",
+        transform:   hovered ? "translateY(-1px)" : "none",
+        transition:  "box-shadow 0.18s ease, transform 0.18s ease, border-color 0.18s ease",
+      }}
+    >
+      {/* Unread dot */}
+      <div style={{ display: "flex", alignItems: "center", padding: "0 10px 0 12px", flexShrink: 0 }}>
+        <div style={{
+          width: 7, height: 7, borderRadius: "50%",
+          background: isUnread ? C.primary : "transparent",
+          border:     isUnread ? "none" : `1.5px solid ${C.border}`,
+          transition: "background 0.2s",
+        }} />
+      </div>
+
+      {/* Avatar */}
+      <div style={{ display: "flex", alignItems: "center", paddingRight: 14, flexShrink: 0 }}>
+        <Avatar
+          size={36}
+          style={{
+            background: avatarColor(item.sender),
+            fontWeight: 600, fontSize: 14,
+            flexShrink: 0,
+          }}
+        >
+          {(item.sender || "U").charAt(0).toUpperCase()}
+        </Avatar>
+      </div>
+
+      {/* Content */}
+      <div style={{ flex: 1, padding: "13px 0", minWidth: 0, overflow: "hidden" }}>
+
+        {/* Sender row */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+          <span style={{
+            fontWeight:   isUnread ? 600 : 500,
+            fontSize:     13,
+            color:        C.text1,
+            whiteSpace:   "nowrap",
+            overflow:     "hidden",
+            textOverflow: "ellipsis",
+            maxWidth:     260,
+          }}>
+            {item.sender || "Unknown Sender"}
+          </span>
+          {showNew && (
+            <span style={{
+              fontSize: 10, fontWeight: 600, letterSpacing: 0.4,
+              color: C.primary,
+              background: "#dbeafe",
+              padding: "1px 7px", borderRadius: 4,
+              flexShrink: 0,
+            }}>
+              NEW
+            </span>
+          )}
+          {showClip && (
+            <PaperClipOutlined style={{ color: C.text3, fontSize: 12, flexShrink: 0 }} />
+          )}
+        </div>
+
+        {/* Subject */}
+        <div style={{
+          fontWeight:   isUnread ? 600 : 400,
+          fontSize:     13,
+          color:        isUnread ? C.text1 : C.text2,
+          whiteSpace:   "nowrap",
+          overflow:     "hidden",
+          textOverflow: "ellipsis",
+          marginBottom: 4,
+        }}>
+          {item.show_subject}
+        </div>
+
+        {/* Preview */}
+        <div style={{
+          fontSize:     12,
+          color:        C.text3,
+          whiteSpace:   "nowrap",
+          overflow:     "hidden",
+          textOverflow: "ellipsis",
+          marginBottom: 8,
+        }}>
+          {(item.show_body || "No preview available.").slice(0, 140)}
+        </div>
+
+        {/* Tags row */}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {cat && (
+            <span style={{
+              fontSize: 11, fontWeight: 500,
+              padding: "2px 8px", borderRadius: 4,
+              background: cat.bg, color: cat.color,
+              border: `1px solid ${cat.color}28`,
+            }}>
+              {cat.label}
+            </span>
+          )}
+          {item.requires_human_review && (
+            <span style={{
+              fontSize: 11, fontWeight: 500,
+              padding: "2px 8px", borderRadius: 4,
+              background: "#fffbeb", color: "#92400e",
+              border: "1px solid #fde68a",
+            }}>
+              Review Required
+            </span>
+          )}
+          {item.source_type === "o365" && (
+            <span style={{
+              fontSize: 11, fontWeight: 400,
+              padding: "2px 8px", borderRadius: 4,
+              background: "#f8fafc", color: C.text3,
+              border: `1px solid ${C.border}`,
+            }}>
+              Outlook
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Right — date + priority */}
+      <div style={{
+        display:        "flex",
+        flexDirection:  "column",
+        alignItems:     "flex-end",
+        justifyContent: "space-between",
+        padding:        "13px 16px",
+        flexShrink:     0,
+        minWidth:       110,
+      }}>
+        <span style={{ fontSize: 11, color: C.text3, whiteSpace: "nowrap" }}>
+          {formatDate(item.received_date)}
+        </span>
+        <span style={{
+          fontSize:     10,
+          fontWeight:   600,
+          padding:      "2px 8px",
+          borderRadius: 4,
+          background:   pri.bg,
+          color:        pri.color,
+          letterSpacing: 0.2,
+          display:      "flex",
+          alignItems:   "center",
+          gap:          4,
+        }}>
+          {pri.label === "High" && (
+            <FlagFilled style={{ fontSize: 9 }} />
+          )}
+          {pri.label}
+        </span>
+      </div>
+    </div>
+  );
+};
+
+// ── Main component ─────────────────────────────────────────────────────────────
+
+const EmailTable: React.FC = () => {
+  const [emails, setEmails]           = useState<any[]>([]);
+  const [total, setTotal]             = useState(0);
+  const [hasMore, setHasMore]         = useState(true);
+  const [loading, setLoading]         = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [stats, setStats]             = useState({ total: 0, unread: 0, needs_review: 0, high_priority: 0 });
+
+  const [activeFilter, setActiveFilter]       = useState("7days");
+  const [searchText, setSearchText]           = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [priorityFilter, setPriorityFilter]   = useState<string | undefined>();
+  const [safetyFilter, setSafetyFilter]       = useState<string | undefined>();
+  const [actionFilter, setActionFilter]       = useState<string | undefined>();
+  const [readIds, setReadIds]                 = useState<Set<string>>(loadReadIds);
+
+  const pageRef      = useRef(0);
+  const hasMoreRef   = useRef(true);
+  const isLoadingRef = useRef(false);
+  const sentinelRef  = useRef<HTMLDivElement>(null);
+  const navigate     = useNavigate();
+
+  // Debounce
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchText), 400);
+    return () => clearTimeout(t);
+  }, [searchText]);
+
+  // Stats
+  useEffect(() => {
+    fetchStats().then(setStats).catch(() => {});
+  }, []);
+
+  // Load page
+  const loadPage = useCallback(async (page: number, reset: boolean) => {
+    if (isLoadingRef.current) return;
+    isLoadingRef.current = true;
+    reset ? setLoading(true) : setLoadingMore(true);
+    try {
+      const data = await fetchBatch({
+        page,
+        limit:    PAGE_SIZE,
+        filter:   activeFilter,
+        search:   debouncedSearch,
+        priority: priorityFilter || "",
+        safety:   safetyFilter   || "",
+        action:   actionFilter   || "",
+      });
+      const transformed = (data.results || []).map((item: any) => ({
+        ...item,
+        show_subject: item.subject || "(No Subject)",
+        show_body:    item.body    || "",
+      }));
+      setEmails(prev => reset ? transformed : [...prev, ...transformed]);
+      setTotal(data.total);
+      setHasMore(data.has_more);
+      hasMoreRef.current = data.has_more;
+      pageRef.current    = page;
+
+      const backendRead: string[] = transformed.filter((e: any) => e.is_read).map((e: any) => e.id);
+      if (backendRead.length) {
+        setReadIds(prev => {
+          const m = new Set([...prev, ...backendRead]);
+          saveReadIds(m);
+          return m;
+        });
+      }
+    } catch { /* silent */ }
+    finally {
+      isLoadingRef.current = false;
+      reset ? setLoading(false) : setLoadingMore(false);
+    }
+  }, [activeFilter, debouncedSearch, priorityFilter, safetyFilter, actionFilter]);
+
+  // Reset on filter change
+  useEffect(() => {
+    pageRef.current = 0; hasMoreRef.current = true;
+    setHasMore(true); setEmails([]);
+    loadPage(1, true);
+  }, [loadPage]);
+
+  // Infinite scroll
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting && hasMoreRef.current && !isLoadingRef.current) loadPage(pageRef.current + 1, false); },
+      { rootMargin: "300px", threshold: 0 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [loadPage]);
+
+  const handleMarkAsRead = useCallback((id: string) => {
+    setReadIds(prev => {
+      if (prev.has(id)) return prev;
+      const u = new Set([...prev, id]);
+      saveReadIds(u);
+      markEmailRead(id).catch(() => {});
+      return u;
+    });
+  }, []);
+
+  const handleClick = useCallback((item: any) => {
+    handleMarkAsRead(item.id);
+    navigate(`/email/${item.id}`);
+  }, [handleMarkAsRead, navigate]);
+
+  const handleReload = useCallback(() => {
+    pageRef.current = 0; hasMoreRef.current = true;
+    setHasMore(true); setEmails([]);
+    loadPage(1, true);
+    fetchStats().then(setStats).catch(() => {});
+  }, [loadPage]);
+
+  const handleFilterClick = (key: string) => {
+    setActiveFilter(key);
+    setSearchText(""); setPriorityFilter(undefined);
+    setSafetyFilter(undefined); setActionFilter(undefined);
+  };
+
+  const activeFilterLabel = FILTERS.find(f => f.key === activeFilter)?.label ?? "";
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+      {/* ── Stats strip ───────────────────────────────────────────────── */}
+      <Row gutter={[12, 12]}>
+        {[
+          { label: "Total Emails",   value: stats.total,          accent: "#6366f1" },
+          { label: "Unread",         value: stats.unread,          accent: C.primary },
+          { label: "Needs Review",   value: stats.needs_review,    accent: "#d97706" },
+          { label: "High Priority",  value: stats.high_priority,   accent: "#dc2626" },
+        ].map(s => (
+          <Col xs={12} sm={6} key={s.label}>
+            <div style={{
+              background:   C.bgCard,
+              border:       `1px solid ${C.border}`,
+              borderTop:    `3px solid ${s.accent}`,
+              borderRadius: 8,
+              padding:      "14px 18px",
+            }}>
+              <div style={{ fontSize: 26, fontWeight: 700, color: C.text1, lineHeight: 1 }}>
+                {s.value}
+              </div>
+              <div style={{ fontSize: 11, color: C.text3, marginTop: 4, fontWeight: 500, textTransform: "uppercase", letterSpacing: 0.6 }}>
+                {s.label}
+              </div>
+            </div>
+          </Col>
+        ))}
+      </Row>
+
+      {/* ── Main panel ────────────────────────────────────────────────── */}
+      <div style={{
+        background:   C.bgCard,
+        border:       `1px solid ${C.border}`,
+        borderRadius: 10,
+        overflow:     "hidden",
+        boxShadow:    "0 1px 4px rgba(0,0,0,0.05)",
+      }}>
+
+        {/* Panel header */}
+        <div style={{
+          padding:       "16px 20px 14px",
+          borderBottom:  `1px solid ${C.border}`,
+          display:       "flex",
+          justifyContent: "space-between",
+          alignItems:    "center",
+        }}>
+          <div>
+            <Title level={5} style={{ margin: 0, fontWeight: 700, color: C.text1, fontSize: 15 }}>
+              Inbox — {activeFilterLabel}
+            </Title>
+            <Text style={{ fontSize: 12, color: C.text3 }}>
+              {total} message{total !== 1 ? "s" : ""} &middot; {stats.unread} unread
+            </Text>
+          </div>
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={handleReload}
+            loading={loading}
+            size="small"
+            style={{ borderRadius: 6, fontSize: 12, fontWeight: 500 }}
+          >
+            Refresh
+          </Button>
+        </div>
+
+        {/* Filter tabs */}
+        <div style={{
+          display:      "flex",
+          gap:          0,
+          borderBottom: `1px solid ${C.border}`,
+          overflowX:    "auto",
+          padding:      "0 4px",
+        }}>
+          {FILTERS.map(f => {
+            const active = activeFilter === f.key;
+            return (
+              <button
+                key={f.key}
+                onClick={() => handleFilterClick(f.key)}
+                style={{
+                  display:       "flex",
+                  alignItems:    "center",
+                  gap:           6,
+                  padding:       "10px 14px",
+                  border:        "none",
+                  borderBottom:  active ? `2px solid ${C.primary}` : "2px solid transparent",
+                  background:    "transparent",
+                  color:         active ? C.primary : C.text2,
+                  cursor:        "pointer",
+                  fontSize:      13,
+                  fontWeight:    active ? 600 : 400,
+                  whiteSpace:    "nowrap",
+                  transition:    "color 0.15s, border-color 0.15s",
+                  marginBottom:  -1,
+                }}
+              >
+                <span style={{ fontSize: 12 }}>{f.icon}</span>
+                {f.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Search + filters bar */}
+        <div style={{
+          padding:      "12px 20px",
+          borderBottom: `1px solid ${C.border}`,
+          background:   "#fafafa",
+        }}>
+          <Row gutter={[10, 10]} align="middle">
+            <Col xs={24} sm={12} md={10}>
+              <Input.Search
+                placeholder="Search by sender or subject"
+                value={searchText}
+                onChange={e => setSearchText(e.target.value)}
+                allowClear
+                size="middle"
+                style={{ borderRadius: 6 }}
+              />
             </Col>
-            <Col><Button onClick={reload} loading={loading}>Reload Batch Results</Button></Col>
+            <Col xs={8} sm={4} md={4}>
+              <Select
+                placeholder="Priority"
+                value={priorityFilter}
+                onChange={v => setPriorityFilter(v)}
+                allowClear size="middle" style={{ width: "100%" }}
+              >
+                <Option value="high">High</Option>
+                <Option value="medium">Medium</Option>
+                <Option value="low">Low</Option>
+              </Select>
+            </Col>
+            <Col xs={8} sm={4} md={4}>
+              <Select
+                placeholder="Safety"
+                value={safetyFilter}
+                onChange={v => setSafetyFilter(v)}
+                allowClear size="middle" style={{ width: "100%" }}
+              >
+                <Option value="safe">Safe</Option>
+                <Option value="suspicious">Suspicious</Option>
+                <Option value="spam">Spam</Option>
+              </Select>
+            </Col>
+            <Col xs={8} sm={4} md={4}>
+              <Select
+                placeholder="Action"
+                value={actionFilter}
+                onChange={v => setActionFilter(v)}
+                allowClear size="middle" style={{ width: "100%" }}
+              >
+                <Option value="generate_draft_and_notify">Draft &amp; Notify</Option>
+                <Option value="summarize_only">Summarize</Option>
+                <Option value="ignore">Ignored</Option>
+              </Select>
+            </Col>
           </Row>
-          <Input.Search placeholder="Search by subject/sender" value={searchText} onChange={e => setSearchText(e.target.value)} style={{ maxWidth: 320 }} allowClear />
-            <Divider />
-            <Table 
-              loading={loading}
-              columns={columns}
-              dataSource={filteredData}
-              pagination={{ pageSize: 10 }}
-              rowKey="id"
-              size="middle"
-            />
-        </Space>
-      </Card>
+        </div>
+
+        {/* Email list */}
+        <div style={{ padding: "12px 16px" }}>
+          {loading ? (
+            <div style={{ display: "flex", justifyContent: "center", padding: "60px 0" }}>
+              <Space direction="vertical" align="center" size={12}>
+                <Spin size="large" />
+                <Text style={{ color: C.text3, fontSize: 13 }}>Loading messages…</Text>
+              </Space>
+            </div>
+          ) : emails.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "60px 0" }}>
+              <InboxOutlined style={{ fontSize: 40, color: C.border, marginBottom: 14 }} />
+              <div style={{ fontSize: 15, fontWeight: 600, color: C.text2, marginBottom: 6 }}>
+                No messages found
+              </div>
+              <div style={{ fontSize: 13, color: C.text3 }}>
+                Try a different filter or refresh the list.
+              </div>
+            </div>
+          ) : (
+            emails.map(item => (
+              <EmailCard
+                key={item.id}
+                item={item}
+                isUnread={!readIds.has(item.id)}
+                onClick={() => handleClick(item)}
+              />
+            ))
+          )}
+
+          {/* Scroll sentinel + end-of-list */}
+          <div
+            ref={sentinelRef}
+            style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "16px 0", minHeight: 48 }}
+          >
+            {loadingMore && (
+              <Space size={8}>
+                <Spin size="small" />
+                <Text style={{ color: C.text3, fontSize: 12 }}>Loading more messages…</Text>
+              </Space>
+            )}
+            {!hasMore && emails.length > 0 && !loading && (
+              <Text style={{ color: C.text3, fontSize: 12 }}>
+                — End of results · {total} message{total !== 1 ? "s" : ""} total —
+              </Text>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

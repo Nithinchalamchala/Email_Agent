@@ -1,6 +1,12 @@
 # Environment variables - never commit secrets
 .env
 
+# SQLite databases
+*.db
+
+# MSAL token cache — contains refresh tokens, never commit
+auth/.token_cache.json
+
 # Python
 __pycache__/
 *.py[cod]

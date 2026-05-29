@@ -2,3 +2,6 @@ pydantic
 python-dotenv
 openai
 google-genai
+msal
+requests
+beautifulsoup4

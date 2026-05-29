@@ -1,53 +1,23 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-import os
 import json
+import sys
+import os
+import base64
 
-def get_batch_folders():
-    base = os.path.join(os.path.dirname(__file__), "..", "sample_data", "batch")
-    return [
-        os.path.abspath(os.path.join(base, "results")),
-        os.path.abspath(os.path.join(base, "outputdraft")),
-    ]
+# Ensure project root is on sys.path regardless of where uvicorn is launched from
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-def try_read_json(path):
-    try:
-        with open(path, "r") as f:
-            return json.load(f)
-    except Exception:
-        return None
+from fastapi import FastAPI, HTTPException, Header
+from fastapi.middleware.cors import CORSMiddleware
 
-def extract_original_fields(data, orig):
-    # Try all placements for subject/body/sender/time
-    result = {
-        "original_subject": None,
-        "original_body": None,
-        "original_sender": None,
-        "received_date": None
-    }
-    if orig:
-        result["original_subject"] = orig.get("subject") or (orig.get("summary", {}).get("subject") if isinstance(orig.get("summary"), dict) else None)
-        result["original_body"] = orig.get("body")
-        if not result["original_body"]:
-            # Try extract from full_msg if present (O365 structure)
-            full = orig.get("full_msg")
-            if full and isinstance(full, dict):
-                body_html = full.get("body", {}).get("content")
-                if body_html:
-                    import re
-                    plain = re.sub('<[^<]+?>', '', body_html)
-                    result["original_body"] = plain.strip()
-        sender = orig.get("sender")
-        if not sender:
-            s = orig.get("summary", {}).get("sender") if isinstance(orig.get("summary"), dict) else None
-            if s and isinstance(s, dict):
-                sender = s.get("emailAddress", {}).get("address") or s.get("emailAddress", {}).get("name")
-        result["original_sender"] = sender or orig.get("sender")
-        result["received_date"] = orig.get("timestamp") or orig.get("summary", {}).get("receivedDateTime")
-    else:
-        # Sometimes draft/source data is the only thing present (poor pipeline)
-        result["original_subject"] = data.get("subject") or data.get("draft", "").split('\n', 1)[0].replace('Subject:', '').strip() if data.get("draft") else None
-    return result
+from storage.database import (
+    init_db,
+    get_emails_paginated,
+    get_stats,
+    get_email_by_id,
+    mark_as_read,
+)
+
+init_db()
 
 app = FastAPI()
 app.add_middleware(
@@ -58,54 +28,173 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def _serialize(e: dict) -> dict:
+    return {
+        "id":                    e["id"],
+        "sender":                e["sender"] or "",
+        "subject":               e["subject"] or "",
+        "body":                  e["body"] or "",
+        "action":                e["action"] or "",
+        "requires_human_review": bool(e["requires_human_review"]),
+        "intent":                e["intent"] or "",
+        "priority":              e["priority"] or "",
+        "safety":                e["safety"] or "safe",
+        "reasoning":             e["reasoning"] or "",
+        "received_date":         e["received_date"],
+        "is_read":               bool(e["is_read"]),
+        "source_type":           e["source_type"] or "",
+    }
+
 @app.get("/api/batch")
-def list_batch_results():
-    batchdirs = get_batch_folders()
-    summaries = []
-    for RESULTS_DIR in batchdirs:
-        if not os.path.exists(RESULTS_DIR):
-            continue
-        files = [f for f in os.listdir(RESULTS_DIR) if f.endswith(".json")]
-        for fname in files:
-            fpath = os.path.join(RESULTS_DIR, fname)
-            data = try_read_json(fpath)
-            if not data:
-                continue
-            # Find possible original email file
-            batch_base = os.path.dirname(RESULTS_DIR)
-            email_id = fname.replace("_result.json", "").replace(".json", "")
-            orig_path = os.path.join(batch_base, f"{email_id}.json")
-            orig = try_read_json(orig_path)
-            orig_fields = extract_original_fields(data, orig)
-            summaries.append({
-                "id": email_id,
-                "sender": orig_fields["original_sender"] or data.get("classification", {}).get("source", "unknown"),
-                "subject": orig_fields["original_subject"] or data.get("subject", "") or data.get("draft", ""),
-                "body": orig_fields["original_body"] or "",
-                "action": data.get("action", ""),
-                "requires_human_review": data.get("requires_human_review", False),
-                "intent": data.get("classification", {}).get("intent", ""),
-                "priority": data.get("classification", {}).get("priority", ""),
-                "safety": data.get("classification", {}).get("safety", "safe"),
-                "reasoning": data.get("reasoning", ""),
-                "received_date": orig_fields["received_date"],
-            })
-    return {"results": summaries}
+def list_batch_results(
+    page: int     = 1,
+    limit: int    = 25,
+    filter: str   = "7days",
+    search: str   = "",
+    priority: str = "",
+    safety: str   = "",
+    action: str   = "",
+):
+    result = get_emails_paginated(
+        page=page,
+        limit=min(limit, 50),       # never exceed 50 per page
+        filter_type=filter,
+        search=search,
+        priority=priority,
+        safety=safety,
+        action=action,
+    )
+    return {
+        "results":  [_serialize(e) for e in result["emails"]],
+        "total":    result["total"],
+        "page":     result["page"],
+        "limit":    result["limit"],
+        "has_more": result["has_more"],
+    }
+
+@app.get("/api/stats")
+def email_stats():
+    return get_stats()
 
 @app.get("/api/email/{email_id}")
 def get_email_result(email_id: str):
-    batchdirs = get_batch_folders()
-    for RESULTS_DIR in batchdirs:
-        path = os.path.join(RESULTS_DIR, f"{email_id}_result.json")
-        if os.path.exists(path):
-            data = try_read_json(path) or {}
-            orig_path = os.path.join(os.path.dirname(RESULTS_DIR), f"{email_id}.json")
-            orig = try_read_json(orig_path)
-            orig_fields = extract_original_fields(data, orig)
-            # Promote fields to top-level for frontend simplicity
-            data["original_subject"] = orig_fields["original_subject"]
-            data["original_body"] = orig_fields["original_body"]
-            data["original_sender"] = orig_fields["original_sender"]
-            data["received_date"] = orig_fields["received_date"]
-            return data
-    raise HTTPException(status_code=404, detail="Result not found.")
+    email = get_email_by_id(email_id)
+    if not email:
+        raise HTTPException(status_code=404, detail="Email not found.")
+
+    pipeline_output: dict = {}
+    if email.get("pipeline_output"):
+        try:
+            pipeline_output = json.loads(email["pipeline_output"])
+        except Exception:
+            pass
+
+    original_email: dict = {}
+    if email.get("original_email"):
+        try:
+            original_email = json.loads(email["original_email"])
+        except Exception:
+            pass
+
+    result = {**pipeline_output}
+    result["original_subject"] = email["subject"]
+    result["original_body"]    = email["body"]
+    result["original_sender"]  = email["sender"]
+    result["received_date"]    = email["received_date"]
+    result["is_read"]          = bool(email["is_read"])
+    result["source_type"]      = email["source_type"]
+
+    if original_email:
+        result["thread_id"] = original_email.get("thread_id")
+        result["metadata"]  = original_email.get("metadata")
+        html_body = (
+            original_email.get("raw_html_body")
+            or original_email.get("original_html_body")
+            or (
+                (original_email.get("full_msg") or {}).get("body", {}).get("content")
+                if isinstance(original_email.get("full_msg"), dict) else None
+            )
+        )
+        if html_body:
+            result["original_html_body"] = html_body
+
+    return result
+
+@app.patch("/api/email/{email_id}/mark-read")
+def mark_email_read(email_id: str):
+    if not mark_as_read(email_id):
+        raise HTTPException(status_code=404, detail="Email not found.")
+    return {"success": True, "email_id": email_id, "is_read": True}
+
+@app.post("/api/fetch-emails")
+def fetch_emails(
+    x_ms_graph_token: str | None = Header(default=None, alias="X-MS-GRAPH-TOKEN"),
+):
+    """
+    Receive a Graph access token from the browser (SPA MSAL flow),
+    fetch unread emails, run them through the pipeline, save to DB.
+    """
+    if not x_ms_graph_token:
+        raise HTTPException(
+            status_code=401,
+            detail="X-MS-GRAPH-TOKEN header is required. Sign in via the dashboard first.",
+        )
+    try:
+        from services.graph_fetcher import fetch_and_process
+        results = fetch_and_process(token=x_ms_graph_token, limit=10)
+        return {
+            "success":   True,
+            "processed": len(results["processed"]),
+            "skipped":   len(results["skipped"]),
+            "emails":    results["processed"],
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+@app.get("/api/sync-status")
+def sync_status():
+    from storage.database import get_connection
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT processed_at FROM emails ORDER BY processed_at DESC LIMIT 1"
+        ).fetchone()
+    last_sync = row["processed_at"] if row else None
+
+    user_email        = ""
+    connected_account = "Not connected"
+
+    # 1. Try MSAL token cache (preferred — works after MSAL sign-in)
+    try:
+        from auth.msal_auth import get_authenticated_user
+        msal_user = get_authenticated_user()
+        if msal_user.get("email"):
+            user_email        = msal_user["email"]
+            connected_account = "Outlook"
+    except Exception:
+        pass
+
+    # 2. Fallback: decode legacy MS_GRAPH_TOKEN from .env (if still present)
+    if not user_email:
+        token = os.environ.get("MS_GRAPH_TOKEN", "")
+        if token:
+            try:
+                payload_b64 = token.split(".")[1]
+                payload_b64 += "=" * (4 - len(payload_b64) % 4)
+                decoded = json.loads(base64.b64decode(payload_b64))
+                user_email = (
+                    decoded.get("upn")
+                    or decoded.get("preferred_username")
+                    or decoded.get("unique_name")
+                    or ""
+                )
+                if user_email:
+                    connected_account = "Outlook"
+            except Exception:
+                pass
+
+    return {
+        "last_sync":         last_sync,
+        "ai_status":         "active",
+        "connected_account": connected_account,
+        "user_email":        user_email or "",
+    }
