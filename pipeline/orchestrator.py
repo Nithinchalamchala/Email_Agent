@@ -69,5 +69,9 @@ def email_pipeline(raw_email_dict: dict) -> dict:
     result = output.dict()
     if llm_aug:
         result["llm_classification"] = llm_aug
+    if classification.intent == "calendar":
+        from cal.calendar_pipeline import run_calendar_pipeline
+        calendar_output = run_calendar_pipeline(cleaned_email.__dict__)
+        result["calendar_output"] = calendar_output
     logger.info(f"Pipeline output: {result}")
     return result

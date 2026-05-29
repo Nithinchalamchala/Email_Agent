@@ -45,9 +45,18 @@ def extract_original_fields(data, orig):
         result["original_sender"] = sender or orig.get("sender")
         result["received_date"] = orig.get("timestamp") or orig.get("summary", {}).get("receivedDateTime")
     else:
-        # Sometimes draft/source data is the only thing present (poor pipeline)
-        result["original_subject"] = data.get("subject") or data.get("draft", "").split('\n', 1)[0].replace('Subject:', '').strip() if data.get("draft") else None
+        # Result JSON written by fetch_unread_o365.py already has original_* at top level
+        result["original_subject"] = (
+            data.get("original_subject")
+            or data.get("subject")
+            or (data.get("draft", "").split('\n', 1)[0].replace('Subject:', '').strip() if data.get("draft") else None)
+        )
+        result["original_body"] = data.get("original_body") or data.get("body") or ""
+        result["original_sender"] = data.get("original_sender") or ""
+        result["received_date"] = data.get("original_timestamp") or data.get("received_date")
     return result
+
+from datetime import datetime as _dt
 
 app = FastAPI()
 app.add_middleware(
@@ -109,3 +118,38 @@ def get_email_result(email_id: str):
             data["received_date"] = orig_fields["received_date"]
             return data
     raise HTTPException(status_code=404, detail="Result not found.")
+
+
+# ── Calendar endpoints ─────────────────────────────────────────────────────────
+
+@app.get("/api/calendar/calendars")
+def api_get_calendars():
+    try:
+        from cal.graph_client import get_calendars
+        return get_calendars()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/calendar/events")
+def api_get_events(days: int = 7):
+    try:
+        from cal.graph_client import get_upcoming_events
+        return get_upcoming_events(days=days)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/calendar/run")
+def api_run_calendar_pipeline(body: dict):
+    try:
+        from cal.calendar_pipeline import run_calendar_pipeline
+        email = {
+            "sender": body.get("sender", ""),
+            "subject": body.get("subject", ""),
+            "cleaned_body": body.get("body", ""),
+            "timestamp": body.get("timestamp") or _dt.utcnow().isoformat(),
+        }
+        return run_calendar_pipeline(email)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
