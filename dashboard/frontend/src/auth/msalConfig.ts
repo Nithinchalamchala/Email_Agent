@@ -12,4 +12,4 @@ export const msalConfig: Configuration = {
   },
 };
 
-export const graphScopes = ["Mail.Read", "Mail.ReadWrite"];
+export const graphScopes = ["Mail.Read", "Mail.ReadWrite", "Calendars.ReadWrite"];

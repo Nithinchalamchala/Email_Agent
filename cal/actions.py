@@ -34,7 +34,7 @@ def _build_graph_payload(extracted: dict) -> dict:
     return payload
 
 
-def execute_action(extracted: dict) -> dict:
+def execute_action(extracted: dict, token: str | None = None) -> dict:
     """
     Decides what to do with the extracted event:
     - confidence < 0.5  → no_action (not a clear meeting request)
@@ -68,7 +68,7 @@ def execute_action(extracted: dict) -> dict:
         end = (datetime.fromisoformat(start) + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%S")
         extracted = {**extracted, "end_time": end}
 
-    if check_conflicts(start, end):
+    if check_conflicts(start, end, token=token):
         return {
             "action": "conflict_detected",
             "status": "conflict",
@@ -80,7 +80,7 @@ def execute_action(extracted: dict) -> dict:
         }
 
     payload = _build_graph_payload(extracted)
-    graph_response = create_event(payload)
+    graph_response = create_event(payload, token=token)
 
     return {
         "action": "event_created",

@@ -39,16 +39,17 @@ export const triggerEmailFetch = async (graphToken: string) =>
     { headers: { "X-MS-GRAPH-TOKEN": graphToken } },
   )).data;
 
-// Calendar
-export const fetchCalendarEvents = async (days = 7) =>
-  (await axios.get(`${BASE}/api/calendar/events?days=${days}`)).data;
+// Calendar — all functions accept the MSAL token as X-Cal-Token header
+const calHeaders = (token?: string) =>
+  token ? { "X-Cal-Token": token } : {};
 
-export const fetchCalendars = async () =>
-  (await axios.get(`${BASE}/api/calendar/calendars`)).data;
+export const fetchCalendarEvents = async (days = 7, token?: string) =>
+  (await axios.get(`${BASE}/api/calendar/events?days=${days}`, { headers: calHeaders(token) })).data;
 
-export const runCalendarPipeline = async (email: {
-  sender: string;
-  subject: string;
-  body: string;
-  timestamp: string;
-}) => (await axios.post(`${BASE}/api/calendar/run`, email)).data;
+export const fetchCalendars = async (token?: string) =>
+  (await axios.get(`${BASE}/api/calendar/calendars`, { headers: calHeaders(token) })).data;
+
+export const runCalendarPipeline = async (
+  email: { sender: string; subject: string; body: string; timestamp: string },
+  token?: string,
+) => (await axios.post(`${BASE}/api/calendar/run`, email, { headers: calHeaders(token) })).data;

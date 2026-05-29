@@ -14,6 +14,8 @@ import {
   Tag,
   Typography,
 } from "antd";
+import { useMsal } from "@azure/msal-react";
+import { graphScopes } from "../auth/msalConfig";
 import { fetchCalendarEvents, runCalendarPipeline } from "../api";
 
 const { Title, Text } = Typography;
@@ -160,41 +162,46 @@ const PipelineResult: React.FC<{ result: any }> = ({ result }) => {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const CalendarPage: React.FC = () => {
-  const [events, setEvents] = useState<any[]>([]);
+  const { instance, accounts } = useMsal();
+  const [calToken, setCalToken]       = useState<string | null>(null);
+  const [events, setEvents]           = useState<any[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [pipelineLoading, setPipelineLoading] = useState(false);
-  const [pipelineResult, setPipelineResult] = useState<any>(null);
-  const [pipelineError, setPipelineError] = useState<string | null>(null);
+  const [pipelineResult, setPipelineResult]   = useState<any>(null);
+  const [pipelineError, setPipelineError]     = useState<string | null>(null);
 
   const [form] = Form.useForm();
 
-  const loadEvents = () => {
+  const acquireToken = async (): Promise<string | null> => {
+    const account = accounts[0];
+    if (!account) return null;
+    try {
+      const r = await instance.acquireTokenSilent({ scopes: graphScopes, account });
+      setCalToken(r.accessToken);
+      return r.accessToken;
+    } catch { return null; }
+  };
+
+  const loadEvents = async () => {
+    const token = calToken || await acquireToken();
     setEventsLoading(true);
-    fetchCalendarEvents(7)
-      .then((data) => {
-        setEvents(data.value || []);
-        setEventsLoading(false);
-      })
+    fetchCalendarEvents(7, token || undefined)
+      .then((data) => { setEvents(data.value || []); setEventsLoading(false); })
       .catch(() => setEventsLoading(false));
   };
 
-  useEffect(() => {
-    loadEvents();
-  }, []);
+  useEffect(() => { loadEvents(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRunPipeline = async (values: any) => {
-    setPipelineLoading(true);
-    setPipelineResult(null);
-    setPipelineError(null);
+    const token = calToken || await acquireToken();
+    setPipelineLoading(true); setPipelineResult(null); setPipelineError(null);
     try {
       const result = await runCalendarPipeline({
-        sender: values.sender,
-        subject: values.subject,
-        body: values.body,
-        timestamp: new Date().toISOString(),
-      });
+        sender: values.sender, subject: values.subject,
+        body: values.body, timestamp: new Date().toISOString(),
+      }, token || undefined);
       setPipelineResult(result);
-      if (result.status === "success") loadEvents(); // refresh events list
+      if (result.status === "success") loadEvents();
     } catch (e: any) {
       setPipelineError(e?.response?.data?.detail || e.message || "Unknown error");
     } finally {

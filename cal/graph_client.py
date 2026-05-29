@@ -1,7 +1,7 @@
 """
 Low-level Microsoft Graph API client for calendar endpoints (/me/events, /me/calendar).
-Uses the MS_GRAPH_TOKEN delegated bearer token from .env — the same token used by
-fetch_unread_o365.py. All methods return raw Graph API response dicts.
+Accepts an optional MSAL token passed from the frontend (X-Cal-Token header);
+falls back to MS_GRAPH_TOKEN from .env. All methods return raw Graph API response dicts.
 """
 import json
 import os
@@ -15,12 +15,12 @@ load_dotenv()
 _BASE = "https://graph.microsoft.com/v1.0"
 
 
-def _headers() -> dict:
-    token = os.environ.get("MS_GRAPH_TOKEN")
-    if not token:
-        raise EnvironmentError("MS_GRAPH_TOKEN must be set in .env")
+def _headers(token: str | None = None) -> dict:
+    t = token or os.environ.get("MS_GRAPH_TOKEN")
+    if not t:
+        raise EnvironmentError("No calendar token — provide X-Cal-Token header or set MS_GRAPH_TOKEN in .env")
     return {
-        "Authorization": f"Bearer {token}",
+        "Authorization": f"Bearer {t}",
         "Content-Type": "application/json",
     }
 
@@ -33,14 +33,14 @@ def _raise_for_status(response: requests.Response) -> None:
         )
 
 
-def get_calendars() -> dict:
+def get_calendars(token: str | None = None) -> dict:
     """GET /me/calendars — list all calendars for the authenticated user."""
-    response = requests.get(f"{_BASE}/me/calendars", headers=_headers())
+    response = requests.get(f"{_BASE}/me/calendars", headers=_headers(token))
     _raise_for_status(response)
     return response.json()
 
 
-def get_upcoming_events(days: int = 7) -> dict:
+def get_upcoming_events(days: int = 7, token: str | None = None) -> dict:
     """GET /me/calendarView — fetch events within the next `days` days."""
     now = datetime.now(timezone.utc)
     end = now + timedelta(days=days)
@@ -50,23 +50,23 @@ def get_upcoming_events(days: int = 7) -> dict:
         "$orderby": "start/dateTime",
         "$top": 50,
     }
-    response = requests.get(f"{_BASE}/me/calendarView", headers=_headers(), params=params)
+    response = requests.get(f"{_BASE}/me/calendarView", headers=_headers(token), params=params)
     _raise_for_status(response)
     return response.json()
 
 
-def create_event(event_data: dict) -> dict:
+def create_event(event_data: dict, token: str | None = None) -> dict:
     """POST /me/events — create a calendar event. event_data must follow the Graph API event schema."""
     response = requests.post(
         f"{_BASE}/me/events",
-        headers=_headers(),
+        headers=_headers(token),
         data=json.dumps(event_data),
     )
     _raise_for_status(response)
     return response.json()
 
 
-def check_conflicts(start: str, end: str) -> bool:
+def check_conflicts(start: str, end: str, token: str | None = None) -> bool:
     """
     GET /me/calendarView for the given time range.
     Returns True if one or more events already exist in that slot, False otherwise.
@@ -78,7 +78,7 @@ def check_conflicts(start: str, end: str) -> bool:
         "$top": 1,
         "$select": "id,subject,start,end",
     }
-    response = requests.get(f"{_BASE}/me/calendarView", headers=_headers(), params=params)
+    response = requests.get(f"{_BASE}/me/calendarView", headers=_headers(token), params=params)
     _raise_for_status(response)
     events = response.json().get("value", [])
     return len(events) > 0

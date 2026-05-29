@@ -199,25 +199,25 @@ def sync_status():
 # ── Calendar endpoints ─────────────────────────────────────────────────────────
 
 @app.get("/api/calendar/calendars")
-def api_get_calendars():
+def api_get_calendars(x_cal_token: str | None = Header(default=None, alias="X-Cal-Token")):
     try:
         from cal.graph_client import get_calendars
-        return get_calendars()
+        return get_calendars(token=x_cal_token)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/calendar/events")
-def api_get_events(days: int = 7):
+def api_get_events(days: int = 7, x_cal_token: str | None = Header(default=None, alias="X-Cal-Token")):
     try:
         from cal.graph_client import get_upcoming_events
-        return get_upcoming_events(days=days)
+        return get_upcoming_events(days=days, token=x_cal_token)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/calendar/run")
-def api_run_calendar_pipeline(body: dict):
+def api_run_calendar_pipeline(body: dict, x_cal_token: str | None = Header(default=None, alias="X-Cal-Token")):
     try:
         from cal.calendar_pipeline import run_calendar_pipeline
         email = {
@@ -226,6 +226,6 @@ def api_run_calendar_pipeline(body: dict):
             "cleaned_body": body.get("body", ""),
             "timestamp": body.get("timestamp") or _dt.utcnow().isoformat(),
         }
-        return run_calendar_pipeline(email)
+        return run_calendar_pipeline(email, token=x_cal_token)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

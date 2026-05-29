@@ -12,7 +12,7 @@ from cal.actions import execute_action
 from cal.models import CalendarEvent, CalendarPipelineOutput
 
 
-def run_calendar_pipeline(cleaned_email: dict) -> dict:
+def run_calendar_pipeline(cleaned_email: dict, token: str | None = None) -> dict:
     """
     Entry point for calendar processing.
 
@@ -26,7 +26,7 @@ def run_calendar_pipeline(cleaned_email: dict) -> dict:
     extracted = extract_calendar_details(cleaned_email)
 
     # Step 2 — execute the appropriate Graph API action
-    action_result = execute_action(extracted)
+    action_result = execute_action(extracted, token=token)
 
     # Step 3 — assemble structured output
     event = None
