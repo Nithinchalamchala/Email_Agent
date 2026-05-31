@@ -25,7 +25,9 @@ const { TextArea } = Input;
 
 function fmtDateTime(iso: string) {
   if (!iso) return "—";
-  return new Date(iso).toLocaleString("en-IN", {
+  // Graph API returns datetimes without Z — append it so JS parses as UTC, not local
+  const utcIso = iso.endsWith("Z") ? iso : iso + "Z";
+  return new Date(utcIso).toLocaleString("en-IN", {
     dateStyle: "medium",
     timeStyle: "short",
   });

@@ -4,9 +4,26 @@ from cleaned email text. Returns structured data consumed by calendar_pipeline.p
 """
 import json
 import re
+from datetime import datetime, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from config.settings import settings
+
+# All times from the LLM are treated as IST; Python converts to UTC reliably
+_USER_TZ = ZoneInfo("Asia/Kolkata")  # IST = UTC+5:30
+
+
+def _local_to_utc(dt_str: str | None) -> str | None:
+    """Convert a naive IST datetime string to a UTC ISO string."""
+    if not dt_str:
+        return None
+    try:
+        local_dt = datetime.fromisoformat(dt_str).replace(tzinfo=_USER_TZ)
+        utc_dt = local_dt.astimezone(timezone.utc)
+        return utc_dt.strftime("%Y-%m-%dT%H:%M:%S")
+    except (ValueError, TypeError):
+        return dt_str  # return as-is if parsing fails
 
 _SYSTEM_PROMPT = """\
 You are a calendar extraction assistant. Given an email, extract meeting details and return ONLY a valid JSON object — no markdown, no code fences, no explanation.
@@ -15,8 +32,8 @@ JSON schema:
 {
   "title":       "<string: meeting title or subject>",
   "date":        "<ISO date string YYYY-MM-DD, or null if not found>",
-  "start_time":  "<ISO datetime string YYYY-MM-DDTHH:MM:SS, or null if not found>",
-  "end_time":    "<ISO datetime string YYYY-MM-DDTHH:MM:SS, or null if not found>",
+  "start_time":  "<ISO datetime string YYYY-MM-DDTHH:MM:SS in IST, or null if not found>",
+  "end_time":    "<ISO datetime string YYYY-MM-DDTHH:MM:SS in IST, or null if not found>",
   "location":    "<string or null>",
   "attendees":   ["<email address>", ...],
   "description": "<string: brief summary of meeting purpose>",
@@ -25,7 +42,10 @@ JSON schema:
 
 Rules:
 - Resolve relative dates (e.g. "tomorrow", "next Monday") using the email timestamp provided.
-- Convert all times to UTC using timezone hints in the email body (e.g. "IST" = UTC+5:30).
+- Return start_time and end_time in IST (India Standard Time) — do NOT convert to UTC.
+- If the email mentions a timezone (e.g. "3pm IST", "2pm UTC+5:30"), keep the time as stated — just return the clock value in IST.
+- If the email says "3pm UTC" or "3pm GMT", convert to IST by adding 5 hours 30 minutes, then return that IST time.
+- If no timezone is mentioned, assume IST.
 - If no explicit end time, infer from duration mentioned ("1 hour meeting" → end = start + 1h).
 - Include sender email in attendees if this looks like an invite.
 - Set confidence < 0.5 if the email is not clearly a meeting request.
@@ -109,6 +129,11 @@ def extract_calendar_details(email: dict[str, Any]) -> dict[str, Any]:
         }
 
     result.setdefault("confidence", 0.0)
+
+    # Convert IST times to UTC reliably in Python (not via LLM)
+    result["start_time"] = _local_to_utc(result.get("start_time"))
+    result["end_time"]   = _local_to_utc(result.get("end_time"))
+
     return result
 
 
