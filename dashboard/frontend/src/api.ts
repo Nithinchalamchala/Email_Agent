@@ -53,3 +53,8 @@ export const runCalendarPipeline = async (
   email: { sender: string; subject: string; body: string; timestamp: string },
   token?: string,
 ) => (await axios.post(`${BASE}/api/calendar/run`, email, { headers: calHeaders(token) })).data;
+
+export const generateSmartReply = async (
+  email: { sender: string; subject: string; body: string },
+  token?: string,
+) => (await axios.post(`${BASE}/api/email/smart-reply`, email, { headers: calHeaders(token) })).data;

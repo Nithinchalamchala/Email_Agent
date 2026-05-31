@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { fetchEmail } from "../api";
+import { useMsal } from "@azure/msal-react";
+import { graphScopes } from "../auth/msalConfig";
+import { fetchEmail, generateSmartReply } from "../api";
 import {
   Row,
   Col,
@@ -71,12 +73,15 @@ const getSafetyTag = (safety: string) => {
 
 const EmailDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const { instance, accounts } = useMsal();
   const [data, setData] = useState<any>(null);
   const [copied, setCopied] = useState(false);
   const [draftText, setDraftText] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [actionState, setActionState] = useState<'pending' | 'approved' | 'rejected'>('pending');
   const [isDispatching, setIsDispatching] = useState(false);
+  const [smartLoading, setSmartLoading] = useState(false);
+  const [smartContext, setSmartContext] = useState<string | null>(null);
   useEffect(() => {
     if (id) {
       fetchEmail(id).then((res) => {
@@ -109,6 +114,32 @@ const EmailDetails: React.FC = () => {
   const handleReject = () => {
     setActionState('rejected');
     message.warning("Draft rejected and archived. No action taken.");
+  };
+
+  const handleSmartReply = async () => {
+    setSmartLoading(true);
+    try {
+      const account = accounts[0];
+      let token: string | undefined;
+      if (account) {
+        try {
+          const r = await instance.acquireTokenSilent({ scopes: graphScopes, account });
+          token = r.accessToken;
+        } catch { /* fallback: no token, backend uses env var */ }
+      }
+      const result = await generateSmartReply({
+        sender: data.original_sender || data.sender || "",
+        subject: data.original_subject || data.subject || "",
+        body: data.original_body || data.body || "",
+      }, token);
+      setDraftText(result.draft);
+      setSmartContext(result.calendar_context);
+      message.success("Smart reply generated using your real calendar!");
+    } catch (e: any) {
+      message.error(e?.response?.data?.detail || "Smart reply failed.");
+    } finally {
+      setSmartLoading(false);
+    }
   };
 
   if (!data) {
@@ -212,10 +243,25 @@ const EmailDetails: React.FC = () => {
             </div>
             <Divider />
             <div style={{ marginBottom: 6, fontWeight: 700, color: '#0f172a' }}>AI Generated Reply Draft</div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
               <Button size="small" onClick={() => setIsEditing(x => !x)}>Edit Draft</Button>
               <Button size="small" onClick={handleCopy} disabled={!draftText}>{copied ? "Copied" : "Copy Draft"}</Button>
+              <Button
+                size="small"
+                type="primary"
+                loading={smartLoading}
+                onClick={handleSmartReply}
+                style={{ background: "#6366f1", border: "none" }}
+              >
+                📅 Smart Reply
+              </Button>
             </div>
+            {smartContext && (
+              <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 6, padding: "8px 12px", marginBottom: 10, fontSize: 12, color: "#0369a1" }}>
+                <strong>Calendar used:</strong>
+                <pre style={{ margin: "4px 0 0", fontSize: 11, whiteSpace: "pre-wrap", color: "#0c4a6e" }}>{smartContext}</pre>
+              </div>
+            )}
             {isEditing ? (
               <Input.TextArea rows={8} style={{ fontSize: 15, marginBottom: 10 }} value={draftText} onChange={e => setDraftText(e.target.value)} />
             ) : (

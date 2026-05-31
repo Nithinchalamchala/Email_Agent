@@ -229,3 +229,13 @@ def api_run_calendar_pipeline(body: dict, x_cal_token: str | None = Header(defau
         return run_calendar_pipeline(email, token=x_cal_token)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/email/smart-reply")
+def api_smart_reply(body: dict, x_cal_token: str | None = Header(default=None, alias="X-Cal-Token")):
+    """Generate an availability-aware draft reply using real calendar context."""
+    try:
+        from cal.smart_reply import generate_smart_reply
+        return generate_smart_reply(email=body, token=x_cal_token)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
